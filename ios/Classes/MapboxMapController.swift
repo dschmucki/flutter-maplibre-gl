@@ -26,6 +26,8 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
     private var annotationOrder = [String]()
     private var annotationConsumeTapEvents = [String]()
 
+    private var featureLayerIdentifiers = Set<String>()
+
     func view() -> UIView {
         return mapView
     }
@@ -53,7 +55,7 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
             longPress.require(toFail: recognizer)
         }
         mapView.addGestureRecognizer(longPress)
-        
+
         if let args = args as? [String: Any] {
             Convert.interpretMapboxMapOptions(options: args["options"], delegate: self)
             if let initialCameraPosition = args["initialCameraPosition"] as? [String: Any],
@@ -67,6 +69,11 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
             }
             if let annotationConsumeTapEventsArg = args["annotationConsumeTapEvents"] as? [String] {
                 annotationConsumeTapEvents = annotationConsumeTapEventsArg
+            }
+            if let onAttributionClickOverride = args["onAttributionClickOverride"] as? Bool {
+                if  onAttributionClickOverride {
+                    setupAttribution(mapView)
+                }
             }
         }
     }
@@ -497,6 +504,42 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
             removeAllForController(controller:lineAnnotationController, ids:ids)
             result(nil)
 
+        case "symbolLayer#add":
+            guard let arguments = methodCall.arguments as? [String: Any] else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let layerId = arguments["layerId"] as? String else { return }
+            guard let properties = arguments["properties"] as? [String: String] else { return }
+            let belowLayerId = arguments["belowLayerId"] as? String
+            addSymbolLayer(sourceId: sourceId, layerId: layerId, belowLayerId: belowLayerId, properties: properties)
+            result(nil)
+
+        case "lineLayer#add":
+            guard let arguments = methodCall.arguments as? [String: Any] else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let layerId = arguments["layerId"] as? String else { return }
+            guard let properties = arguments["properties"] as? [String: String] else { return }
+            let belowLayerId = arguments["belowLayerId"] as? String
+            addLineLayer(sourceId: sourceId, layerId: layerId, belowLayerId: belowLayerId, properties: properties)
+            result(nil)
+
+         case "fillLayer#add":
+            guard let arguments = methodCall.arguments as? [String: Any] else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let layerId = arguments["layerId"] as? String else { return }
+            guard let properties = arguments["properties"] as? [String: String] else { return }
+            let belowLayerId = arguments["belowLayerId"] as? String
+            addFillLayer(sourceId: sourceId, layerId: layerId, belowLayerId: belowLayerId, properties: properties)
+            result(nil)
+
+        case "circleLayer#add":
+            guard let arguments = methodCall.arguments as? [String: Any] else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let layerId = arguments["layerId"] as? String else { return }
+            guard let properties = arguments["properties"] as? [String: String] else { return }
+            let belowLayerId = arguments["belowLayerId"] as? String
+            addCircleLayer(sourceId: sourceId, layerId: layerId, belowLayerId: belowLayerId, properties: properties)
+            result(nil)
+
         case "line#getGeometry":
             guard let lineAnnotationController = lineAnnotationController else { return }
             guard let arguments = methodCall.arguments as? [String: Any] else { return }
@@ -643,10 +686,10 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
             self.mapView.style?.addSource(source)
             
             result(nil)
-        case "style#removeImageSource":
+        case "style#removeSource":
             guard let arguments = methodCall.arguments as? [String: Any] else { return }
-            guard let imageSourceId = arguments["imageSourceId"] as? String else { return }
-            guard let source = self.mapView.style?.source(withIdentifier: imageSourceId) else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let source = self.mapView.style?.source(withIdentifier: sourceId) else { return }
             self.mapView.style?.removeSource(source)
             result(nil)
         case "style#addLayer":
@@ -692,12 +735,29 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
             let layer = MGLRasterStyleLayer(identifier: imageLayerId, source: source)
             self.mapView.style?.insertLayer(layer, below: belowLayer)
             result(nil)
+
         case "style#removeLayer":
             guard let arguments = methodCall.arguments as? [String: Any] else { return }
-            guard let imageLayerId = arguments["imageLayerId"] as? String else { return }
-            guard let layer = self.mapView.style?.layer(withIdentifier: imageLayerId) else { return }
+            guard let layerId = arguments["layerId"] as? String else { return }
+            guard let layer = self.mapView.style?.layer(withIdentifier: layerId) else { return }
+            featureLayerIdentifiers.remove(layerId)
             self.mapView.style?.removeLayer(layer)
             result(nil)
+
+        case "source#addGeoJson":
+            guard let arguments = methodCall.arguments as? [String: Any] else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let geojson = arguments["geojson"] as? String else { return }
+            addSource(sourceId: sourceId, geojson: geojson)
+            result(nil)
+
+        case "source#setGeoJson":
+            guard let arguments = methodCall.arguments as? [String: Any] else { return }
+            guard let sourceId = arguments["sourceId"] as? String else { return }
+            guard let geojson = arguments["geojson"] as? String else { return }
+            setSource(sourceId: sourceId, geojson: geojson)
+            result(nil)
+
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -753,12 +813,21 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
         // Get the CGPoint where the user tapped.
         let point = sender.location(in: mapView)
         let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
-        channel?.invokeMethod("map#onMapClick", arguments: [
-                      "x": point.x,
-                      "y": point.y,
-                      "lng": coordinate.longitude,
-                      "lat": coordinate.latitude,
-                  ])
+
+        let features = mapView.visibleFeatures(at: point, styleLayerIdentifiers: featureLayerIdentifiers)
+
+        if let feature = features.last, let id = feature.identifier {
+            channel?.invokeMethod("feature#onTap", arguments: [
+                        "featureId": id
+            ])
+        } else {
+            channel?.invokeMethod("map#onMapClick", arguments: [
+                        "x": point.x,
+                        "y": point.y,
+                        "lng": coordinate.longitude,
+                        "lat": coordinate.latitude,
+            ])
+        }
     }
     
     /*
@@ -781,8 +850,7 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
         
     }
     
-    
-    
+
     /*
      *  MGLAnnotationControllerDelegate
      */
@@ -816,7 +884,24 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
         }
         return MGLAnnotationView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
     }
-    
+
+    /*
+     * Override the attribution button's click target to handle the event locally.
+     * Called if the application supplies an onAttributionClick handler.
+     */
+    func setupAttribution(_ mapView: MGLMapView) {
+        mapView.attributionButton.removeTarget(mapView, action: #selector(mapView.showAttribution), for: .touchUpInside)
+        mapView.attributionButton.addTarget(self, action: #selector(showAttribution), for: UIControl.Event.touchUpInside)
+    }
+
+    /*
+     * Custom click handler for the attribution button. This callback is bound when
+     * the application specifies an onAttributionClick handler.
+     */
+    @objc func showAttribution() {
+        channel?.invokeMethod("map#onAttributionClick", arguments: [])
+    }
+
     /*
      *  MGLMapViewDelegate
      */
@@ -941,7 +1026,68 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
             }
         }
     }
-    
+
+    func addSymbolLayer(sourceId: String, layerId: String, belowLayerId: String?, properties: [String: String]) {
+        if let style = mapView.style {
+            if let source = style.source(withIdentifier: sourceId) {
+
+                let layer = MGLSymbolStyleLayer(identifier: layerId, source: source)
+                LayerPropertyConverter.addSymbolProperties(symbolLayer: layer, properties: properties)
+                if let id = belowLayerId, let belowLayer = style.layer(withIdentifier: id)  {
+                    style.insertLayer(layer, below: belowLayer)
+                } else {
+                    style.addLayer(layer)
+                }
+                featureLayerIdentifiers.insert(layerId)
+            }
+        }
+    }
+
+    func addLineLayer(sourceId: String, layerId: String, belowLayerId: String?, properties: [String: String]) {
+        if let style = mapView.style {
+            if let source = style.source(withIdentifier: sourceId) {
+                let layer = MGLLineStyleLayer(identifier: layerId, source: source)
+                LayerPropertyConverter.addLineProperties(lineLayer: layer, properties: properties)
+                if let id = belowLayerId, let belowLayer = style.layer(withIdentifier: id)  {
+                    style.insertLayer(layer, below: belowLayer)
+                } else {
+                    style.addLayer(layer)
+                }
+                featureLayerIdentifiers.insert(layerId)
+            }
+        }
+    }
+
+    func addFillLayer(sourceId: String, layerId: String, belowLayerId: String?, properties: [String: String]) {
+        if let style = mapView.style {
+            if let source = style.source(withIdentifier: sourceId) {
+                let layer = MGLFillStyleLayer(identifier: layerId, source: source)
+                LayerPropertyConverter.addFillProperties(fillLayer: layer, properties: properties)
+                if let id = belowLayerId, let belowLayer = style.layer(withIdentifier: id)  {
+                    style.insertLayer(layer, below: belowLayer)
+                } else {
+                    style.addLayer(layer)
+                }
+                featureLayerIdentifiers.insert(layerId)
+            }
+        }
+    }
+
+    func addCircleLayer(sourceId: String, layerId: String, belowLayerId: String?, properties: [String: String]) {
+        if let style = mapView.style {
+            if let source = style.source(withIdentifier: sourceId) {
+                let layer = MGLCircleStyleLayer(identifier: layerId, source: source)
+                LayerPropertyConverter.addCircleProperties(circleLayer: layer, properties: properties)
+                if let id = belowLayerId, let belowLayer = style.layer(withIdentifier: id)  {
+                    style.insertLayer(layer, below: belowLayer)
+                } else {
+                    style.addLayer(layer)
+                }
+                featureLayerIdentifiers.insert(layerId)
+            }
+        }
+    }
+
     func mapViewDidBecomeIdle(_ mapView: MGLMapView) {
         if let channel = channel {
             channel.invokeMethod("map#onIdle", arguments: []);
@@ -972,6 +1118,26 @@ class MapboxMapController: NSObject, FlutterPlatformView, MGLMapViewDelegate, Ma
         }
     }
     
+    func addSource(sourceId: String, geojson: String) {
+        do {
+            let parsed = try MGLShape.init(data: geojson.data(using: .utf8)!, encoding: String.Encoding.utf8.rawValue)
+            let source = MGLShapeSource(identifier: sourceId, shape: parsed, options: [:])
+            mapView.style?.addSource(source)
+        } catch {
+        }
+    }
+
+    func setSource(sourceId: String, geojson: String) {
+        do {
+            let parsed = try MGLShape.init(data: geojson.data(using: .utf8)!, encoding: String.Encoding.utf8.rawValue)
+            if let source = mapView.style?.source(withIdentifier: sourceId) as? MGLShapeSource {
+                source.shape = parsed
+            }
+        } catch {
+        }
+    }
+
+
     /*
      *  MapboxMapOptionsSink
      */

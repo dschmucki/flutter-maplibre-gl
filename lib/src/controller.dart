@@ -7,6 +7,8 @@ part of maplibre_gl;
 typedef void OnMapClickCallback(Point<double> point, LatLng coordinates);
 typedef void OnMapLongClickCallback(Point<double> point, LatLng coordinates);
 
+typedef void OnAttributionClickCallback();
+
 typedef void OnStyleLoadedCallback();
 
 typedef void OnUserLocationUpdated(UserLocation location);
@@ -34,69 +36,71 @@ typedef void OnMapIdleCallback();
 /// Line tap events can be received by adding callbacks to [onLineTapped].
 /// Circle tap events can be received by adding callbacks to [onCircleTapped].
 class MaplibreMapController extends ChangeNotifier {
-  MaplibreMapController._(this._id, CameraPosition initialCameraPosition,
-      {this.onStyleLoadedCallback,
-      this.onMapClick,
-      this.onMapLongClick,
-      this.onCameraTrackingDismissed,
-      this.onCameraTrackingChanged,
-      this.onMapIdle,
-      this.onUserLocationUpdated,
-      this.onCameraIdle}) {
+  MaplibreMapController({
+    required MapLibreGlPlatform mapLibreGlPlatform,
+    required CameraPosition initialCameraPosition,
+    this.onStyleLoadedCallback,
+    this.onMapClick,
+    this.onMapLongClick,
+    this.onAttributionClick,
+    this.onCameraTrackingDismissed,
+    this.onCameraTrackingChanged,
+    this.onMapIdle,
+    this.onUserLocationUpdated,
+    this.onCameraIdle,
+  }) : _mapLibreGlPlatform = mapLibreGlPlatform {
     _cameraPosition = initialCameraPosition;
 
-    MapLibreGlPlatform.getInstance(_id)
-        .onInfoWindowTappedPlatform
-        .add((symbolId) {
+    _mapLibreGlPlatform.onInfoWindowTappedPlatform.add((symbolId) {
       final symbol = _symbols[symbolId];
       if (symbol != null) {
         onInfoWindowTapped(symbol);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onSymbolTappedPlatform.add((symbolId) {
+    _mapLibreGlPlatform.onSymbolTappedPlatform.add((symbolId) {
       final symbol = _symbols[symbolId];
       if (symbol != null) {
         onSymbolTapped(symbol);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onLineTappedPlatform.add((lineId) {
+    _mapLibreGlPlatform.onLineTappedPlatform.add((lineId) {
       final line = _lines[lineId];
       if (line != null) {
         onLineTapped(line);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onCircleTappedPlatform.add((circleId) {
+    _mapLibreGlPlatform.onCircleTappedPlatform.add((circleId) {
       final circle = _circles[circleId];
       if (circle != null) {
         onCircleTapped(circle);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onFillTappedPlatform.add((fillId) {
+    _mapLibreGlPlatform.onFillTappedPlatform.add((fillId) {
       final fill = _fills[fillId];
       if (fill != null) {
         onFillTapped(fill);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onCameraMoveStartedPlatform.add((_) {
+    _mapLibreGlPlatform.onFeatureTappedPlatform.add((featureId) {
+      onFeatureTapped(featureId);
+    });
+
+    _mapLibreGlPlatform.onCameraMoveStartedPlatform.add((_) {
       _isCameraMoving = true;
       notifyListeners();
     });
 
-    MapLibreGlPlatform.getInstance(_id)
-        .onCameraMovePlatform
-        .add((cameraPosition) {
+    _mapLibreGlPlatform.onCameraMovePlatform.add((cameraPosition) {
       _cameraPosition = cameraPosition;
       notifyListeners();
     });
 
-    MapLibreGlPlatform.getInstance(_id)
-        .onCameraIdlePlatform
-        .add((cameraPosition) {
+    _mapLibreGlPlatform.onCameraIdlePlatform.add((cameraPosition) {
       _isCameraMoving = false;
       if (cameraPosition != null) {
         _cameraPosition = cameraPosition;
@@ -107,75 +111,50 @@ class MaplibreMapController extends ChangeNotifier {
       notifyListeners();
     });
 
-    MapLibreGlPlatform.getInstance(_id).onMapStyleLoadedPlatform.add((_) {
+    _mapLibreGlPlatform.onMapStyleLoadedPlatform.add((_) {
       if (onStyleLoadedCallback != null) {
         onStyleLoadedCallback!();
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onMapClickPlatform.add((dict) {
+    _mapLibreGlPlatform.onMapClickPlatform.add((dict) {
       if (onMapClick != null) {
         onMapClick!(dict['point'], dict['latLng']);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onMapLongClickPlatform.add((dict) {
+    _mapLibreGlPlatform.onMapLongClickPlatform.add((dict) {
       if (onMapLongClick != null) {
         onMapLongClick!(dict['point'], dict['latLng']);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id)
-        .onCameraTrackingChangedPlatform
-        .add((mode) {
+    _mapLibreGlPlatform.onAttributionClickPlatform.add((_) {
+      if (onAttributionClick != null) {
+        onAttributionClick!();
+      }
+    });
+
+    _mapLibreGlPlatform.onCameraTrackingChangedPlatform.add((mode) {
       if (onCameraTrackingChanged != null) {
         onCameraTrackingChanged!(mode);
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id)
-        .onCameraTrackingDismissedPlatform
-        .add((_) {
+    _mapLibreGlPlatform.onCameraTrackingDismissedPlatform.add((_) {
       if (onCameraTrackingDismissed != null) {
         onCameraTrackingDismissed!();
       }
     });
 
-    MapLibreGlPlatform.getInstance(_id).onMapIdlePlatform.add((_) {
+    _mapLibreGlPlatform.onMapIdlePlatform.add((_) {
       if (onMapIdle != null) {
         onMapIdle!();
       }
     });
-    MapLibreGlPlatform.getInstance(_id)
-        .onUserLocationUpdatedPlatform
-        .add((location) {
+    _mapLibreGlPlatform.onUserLocationUpdatedPlatform.add((location) {
       onUserLocationUpdated?.call(location);
     });
-  }
-
-  static MaplibreMapController init(
-      int id, CameraPosition initialCameraPosition,
-      {OnStyleLoadedCallback? onStyleLoadedCallback,
-      OnMapClickCallback? onMapClick,
-      OnUserLocationUpdated? onUserLocationUpdated,
-      OnMapLongClickCallback? onMapLongClick,
-      OnCameraTrackingDismissedCallback? onCameraTrackingDismissed,
-      OnCameraTrackingChangedCallback? onCameraTrackingChanged,
-      OnCameraIdleCallback? onCameraIdle,
-      OnMapIdleCallback? onMapIdle}) {
-    return MaplibreMapController._(id, initialCameraPosition,
-        onStyleLoadedCallback: onStyleLoadedCallback,
-        onMapClick: onMapClick,
-        onUserLocationUpdated: onUserLocationUpdated,
-        onMapLongClick: onMapLongClick,
-        onCameraTrackingDismissed: onCameraTrackingDismissed,
-        onCameraTrackingChanged: onCameraTrackingChanged,
-        onCameraIdle: onCameraIdle,
-        onMapIdle: onMapIdle);
-  }
-
-  static Future<void> initPlatform(int id) async {
-    await MapLibreGlPlatform.getInstance(id).initPlatform(id);
   }
 
   final OnStyleLoadedCallback? onStyleLoadedCallback;
@@ -184,6 +163,7 @@ class MaplibreMapController extends ChangeNotifier {
   final OnMapLongClickCallback? onMapLongClick;
 
   final OnUserLocationUpdated? onUserLocationUpdated;
+  final OnAttributionClickCallback? onAttributionClick;
 
   final OnCameraTrackingDismissedCallback? onCameraTrackingDismissed;
   final OnCameraTrackingChangedCallback? onCameraTrackingChanged;
@@ -200,6 +180,10 @@ class MaplibreMapController extends ChangeNotifier {
 
   /// Callbacks to receive tap events for fills placed on this map.
   final ArgumentCallbacks<Fill> onFillTapped = ArgumentCallbacks<Fill>();
+
+  /// Callbacks to receive tap events for features (geojson layer) placed on this map.
+  final ArgumentCallbacks<dynamic> onFeatureTapped =
+      ArgumentCallbacks<dynamic>();
 
   /// Callbacks to receive tap events for info windows on symbols
   final ArgumentCallbacks<Symbol> onInfoWindowTapped =
@@ -241,14 +225,14 @@ class MaplibreMapController extends ChangeNotifier {
   CameraPosition? get cameraPosition => _cameraPosition;
   CameraPosition? _cameraPosition;
 
-  final int _id; //ignore: unused_field
+  final MapLibreGlPlatform _mapLibreGlPlatform; //ignore: unused_field
 
   Widget buildView(
       Map<String, dynamic> creationParams,
       OnPlatformViewCreatedCallback onPlatformViewCreated,
       Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers) {
-    return MapLibreGlPlatform.getInstance(_id)
-        .buildView(creationParams, onPlatformViewCreated, gestureRecognizers);
+    return _mapLibreGlPlatform.buildView(
+        creationParams, onPlatformViewCreated, gestureRecognizers);
   }
 
   /// Updates configuration options of the map user interface.
@@ -258,8 +242,7 @@ class MaplibreMapController extends ChangeNotifier {
   ///
   /// The returned [Future] completes after listeners have been notified.
   Future<void> _updateMapOptions(Map<String, dynamic> optionsUpdate) async {
-    _cameraPosition = await MapLibreGlPlatform.getInstance(_id)
-        .updateMapOptions(optionsUpdate);
+    _cameraPosition = await _mapLibreGlPlatform.updateMapOptions(optionsUpdate);
     notifyListeners();
   }
 
@@ -270,7 +253,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// It returns true if the camera was successfully moved and false if the movement was canceled.
   /// Note: this currently always returns immediately with a value of null on iOS
   Future<bool?> animateCamera(CameraUpdate cameraUpdate) async {
-    return MapLibreGlPlatform.getInstance(_id).animateCamera(cameraUpdate);
+    return _mapLibreGlPlatform.animateCamera(cameraUpdate);
   }
 
   /// Instantaneously re-position the camera.
@@ -281,7 +264,103 @@ class MaplibreMapController extends ChangeNotifier {
   /// It returns true if the camera was successfully moved and false if the movement was canceled.
   /// Note: this currently always returns immediately with a value of null on iOS
   Future<bool?> moveCamera(CameraUpdate cameraUpdate) async {
-    return MapLibreGlPlatform.getInstance(_id).moveCamera(cameraUpdate);
+    return _mapLibreGlPlatform.moveCamera(cameraUpdate);
+  }
+
+  /// Adds a new geojson source
+  ///
+  /// The json in [geojson] has to comply with the schema for FeatureCollection
+  /// as specified in https://datatracker.ietf.org/doc/html/rfc7946#section-3.3
+  ///
+  /// The returned [Future] completes after the change has been made on the
+  /// platform side.
+  Future<void> addGeoJsonSource(
+      String sourceId, Map<String, dynamic> geojson) async {
+    await _mapLibreGlPlatform.addGeoJsonSource(sourceId, geojson);
+  }
+
+  /// Sets new geojson data to and existing source
+  ///
+  /// This only works as exected if the source has been created with
+  /// [addGeoJsonSource] before. This is very useful if you want to update and
+  /// existing source with modified data.
+  ///
+  /// The json in [geojson] has to comply with the schema for FeatureCollection
+  /// as specified in https://datatracker.ietf.org/doc/html/rfc7946#section-3.3
+  ///
+  /// The returned [Future] completes after the change has been made on the
+  /// platform side.
+  Future<void> setGeoJsonSource(
+      String sourceId, Map<String, dynamic> geojson) async {
+    await _mapLibreGlPlatform.setGeoJsonSource(sourceId, geojson);
+  }
+
+  /// Add a symbol layer to the map with the given properties
+  ///
+  /// The returned [Future] completes after the change has been made on the
+  /// platform side.
+  ///
+  /// Note: [belowLayerId] is currently ignored on the web
+  Future<void> addSymbolLayer(
+      String sourceId, String layerId, SymbolLayerProperties properties,
+      {String? belowLayerId}) async {
+    await _mapLibreGlPlatform.addSymbolLayer(
+      sourceId,
+      layerId,
+      properties.toJson(),
+      belowLayerId: belowLayerId,
+    );
+  }
+
+  /// Add a line layer to the map with the given properties
+  ///
+  /// The returned [Future] completes after the change has been made on the
+  /// platform side.
+  ///
+  /// Note: [belowLayerId] is currently ignored on the web
+  Future<void> addLineLayer(
+      String sourceId, String layerId, LineLayerProperties properties,
+      {String? belowLayerId}) async {
+    await _mapLibreGlPlatform.addLineLayer(
+      sourceId,
+      layerId,
+      properties.toJson(),
+      belowLayerId: belowLayerId,
+    );
+  }
+
+  /// Add a fill layer to the map with the given properties
+  ///
+  /// The returned [Future] completes after the change has been made on the
+  /// platform side.
+  ///
+  /// Note: [belowLayerId] is currently ignored on the web
+  Future<void> addFillLayer(
+      String sourceId, String layerId, FillLayerProperties properties,
+      {String? belowLayerId}) async {
+    await _mapLibreGlPlatform.addFillLayer(
+      sourceId,
+      layerId,
+      properties.toJson(),
+      belowLayerId: belowLayerId,
+    );
+  }
+
+  /// Add a circle layer to the map with the given properties
+  ///
+  /// The returned [Future] completes after the change has been made on the
+  /// platform side.
+  ///
+  /// Note: [belowLayerId] is currently ignored on the web
+  Future<void> addCircleLayer(
+      String sourceId, String layerId, CircleLayerProperties properties,
+      {String? belowLayerId}) async {
+    await _mapLibreGlPlatform.addCircleLayer(
+      sourceId,
+      layerId,
+      properties.toJson(),
+      belowLayerId: belowLayerId,
+    );
   }
 
   /// Updates user location tracking mode.
@@ -290,7 +369,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// platform side.
   Future<void> updateMyLocationTrackingMode(
       MyLocationTrackingMode myLocationTrackingMode) async {
-    return MapLibreGlPlatform.getInstance(_id)
+    return _mapLibreGlPlatform
         .updateMyLocationTrackingMode(myLocationTrackingMode);
   }
 
@@ -299,8 +378,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes after the change has been made on the
   /// platform side.
   Future<void> matchMapLanguageWithDeviceDefault() async {
-    return MapLibreGlPlatform.getInstance(_id)
-        .matchMapLanguageWithDeviceDefault();
+    return _mapLibreGlPlatform.matchMapLanguageWithDeviceDefault();
   }
 
   /// Updates the distance from the edges of the map view’s frame to the edges
@@ -316,8 +394,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// platform side.
   Future<void> updateContentInsets(EdgeInsets insets,
       [bool animated = false]) async {
-    return MapLibreGlPlatform.getInstance(_id)
-        .updateContentInsets(insets, animated);
+    return _mapLibreGlPlatform.updateContentInsets(insets, animated);
   }
 
   /// Updates the language of the map labels to match the specified language.
@@ -327,7 +404,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes after the change has been made on the
   /// platform side.
   Future<void> setMapLanguage(String language) async {
-    return MapLibreGlPlatform.getInstance(_id).setMapLanguage(language);
+    return _mapLibreGlPlatform.setMapLanguage(language);
   }
 
   /// Enables or disables the collection of anonymized telemetry data.
@@ -335,7 +412,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes after the change has been made on the
   /// platform side.
   Future<void> setTelemetryEnabled(bool enabled) async {
-    return MapLibreGlPlatform.getInstance(_id).setTelemetryEnabled(enabled);
+    return _mapLibreGlPlatform.setTelemetryEnabled(enabled);
   }
 
   /// Retrieves whether collection of anonymized telemetry data is enabled.
@@ -343,7 +420,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes after the query has been made on the
   /// platform side.
   Future<bool> getTelemetryEnabled() async {
-    return MapLibreGlPlatform.getInstance(_id).getTelemetryEnabled();
+    return _mapLibreGlPlatform.getTelemetryEnabled();
   }
 
   /// Adds a symbol to the map, configured using the specified custom [options].
@@ -373,8 +450,7 @@ class MaplibreMapController extends ChangeNotifier {
     final List<SymbolOptions> effectiveOptions =
         options.map((o) => SymbolOptions.defaultOptions.copyWith(o)).toList();
 
-    final symbols = await MapLibreGlPlatform.getInstance(_id)
-        .addSymbols(effectiveOptions, data);
+    final symbols = await _mapLibreGlPlatform.addSymbols(effectiveOptions, data);
     symbols.forEach((s) => _symbols[s.id] = s);
     notifyListeners();
     return symbols;
@@ -389,7 +465,8 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once listeners have been notified.
   Future<void> updateSymbol(Symbol symbol, SymbolOptions changes) async {
     assert(_symbols[symbol.id] == symbol);
-    await MapLibreGlPlatform.getInstance(_id).updateSymbol(symbol, changes);
+
+    await _mapLibreGlPlatform.updateSymbol(symbol, changes);
     symbol.options = symbol.options.copyWith(changes);
     notifyListeners();
   }
@@ -399,8 +476,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// In that case this method provides the symbol's actual position, and `symbol.options.geometry` the last programmatically set position.
   Future<LatLng> getSymbolLatLng(Symbol symbol) async {
     assert(_symbols[symbol.id] == symbol);
-    final symbolLatLng =
-        await MapLibreGlPlatform.getInstance(_id).getSymbolLatLng(symbol);
+    final symbolLatLng = await _mapLibreGlPlatform.getSymbolLatLng(symbol);
     notifyListeners();
     return symbolLatLng;
   }
@@ -440,7 +516,7 @@ class MaplibreMapController extends ChangeNotifier {
   ///
   /// The returned [Future] completes once listeners have been notified.
   Future<void> clearSymbols() async {
-    await MapLibreGlPlatform.getInstance(_id).removeSymbols(_symbols.keys);
+    await _mapLibreGlPlatform.removeSymbols(_symbols.keys);
     _symbols.clear();
     notifyListeners();
   }
@@ -451,7 +527,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once the symbol has been removed from
   /// [_symbols].
   Future<void> _removeSymbols(Iterable<String> ids) async {
-    await MapLibreGlPlatform.getInstance(_id).removeSymbols(ids);
+    await _mapLibreGlPlatform.removeSymbols(ids);
     _symbols.removeWhere((k, s) => ids.contains(k));
   }
 
@@ -465,8 +541,7 @@ class MaplibreMapController extends ChangeNotifier {
   Future<Line> addLine(LineOptions options, [Map? data]) async {
     final LineOptions effectiveOptions =
         LineOptions.defaultOptions.copyWith(options);
-    final line = await MapLibreGlPlatform.getInstance(_id)
-        .addLine(effectiveOptions, data);
+    final line = await _mapLibreGlPlatform.addLine(effectiveOptions, data);
     _lines[line.id] = line;
     notifyListeners();
     return line;
@@ -481,8 +556,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// been notified.
   Future<List<Line>> addLines(List<LineOptions> options,
       [List<Map>? data]) async {
-    final lines =
-        await MapLibreGlPlatform.getInstance(_id).addLines(options, data);
+    final lines = await _mapLibreGlPlatform.addLines(options, data);
     lines.forEach((l) => _lines[l.id] = l);
     notifyListeners();
     return lines;
@@ -497,7 +571,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once listeners have been notified.
   Future<void> updateLine(Line line, LineOptions changes) async {
     assert(_lines[line.id] == line);
-    await MapLibreGlPlatform.getInstance(_id).updateLine(line, changes);
+    await _mapLibreGlPlatform.updateLine(line, changes);
     line.options = line.options.copyWith(changes);
     notifyListeners();
   }
@@ -507,8 +581,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// In that case this method provides the line's actual position, and `line.options.geometry` the last programmatically set position.
   Future<List<LatLng>> getLineLatLngs(Line line) async {
     assert(_lines[line.id] == line);
-    final lineLatLngs =
-        await MapLibreGlPlatform.getInstance(_id).getLineLatLngs(line);
+    final lineLatLngs = await _mapLibreGlPlatform.getLineLatLngs(line);
     notifyListeners();
     return lineLatLngs;
   }
@@ -523,7 +596,7 @@ class MaplibreMapController extends ChangeNotifier {
   Future<void> removeLine(Line line) async {
     assert(_lines[line.id] == line);
 
-    await MapLibreGlPlatform.getInstance(_id).removeLine(line.id);
+    await _mapLibreGlPlatform.removeLine(line.id);
     _lines.remove(line.id);
     notifyListeners();
   }
@@ -539,7 +612,7 @@ class MaplibreMapController extends ChangeNotifier {
     final ids = lines.where((l) => _lines[l.id] == l).map((l) => l.id);
     assert(lines.length == ids.length);
 
-    await MapLibreGlPlatform.getInstance(_id).removeLines(ids);
+    await _mapLibreGlPlatform.removeLines(ids);
     ids.forEach((id) => _lines.remove(id));
     notifyListeners();
   }
@@ -552,7 +625,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once listeners have been notified.
   Future<void> clearLines() async {
     final List<String> lineIds = List<String>.from(_lines.keys);
-    await MapLibreGlPlatform.getInstance(_id).removeLines(lineIds);
+    await _mapLibreGlPlatform.removeLines(lineIds);
     _lines.clear();
     notifyListeners();
   }
@@ -567,8 +640,7 @@ class MaplibreMapController extends ChangeNotifier {
   Future<Circle> addCircle(CircleOptions options, [Map? data]) async {
     final CircleOptions effectiveOptions =
         CircleOptions.defaultOptions.copyWith(options);
-    final circle = await MapLibreGlPlatform.getInstance(_id)
-        .addCircle(effectiveOptions, data);
+    final circle = await _mapLibreGlPlatform.addCircle(effectiveOptions, data);
     _circles[circle.id] = circle;
     notifyListeners();
     return circle;
@@ -584,8 +656,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// been notified.
   Future<List<Circle>> addCircles(List<CircleOptions> options,
       [List<Map>? data]) async {
-    final circles =
-        await MapLibreGlPlatform.getInstance(_id).addCircles(options, data);
+    final circles = await _mapLibreGlPlatform.addCircles(options, data);
     circles.forEach((c) => _circles[c.id] = c);
     notifyListeners();
     return circles;
@@ -600,7 +671,8 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once listeners have been notified.
   Future<void> updateCircle(Circle circle, CircleOptions changes) async {
     assert(_circles[circle.id] == circle);
-    await MapLibreGlPlatform.getInstance(_id).updateCircle(circle, changes);
+    await _mapLibreGlPlatform.updateCircle(circle, changes);
+    circle.options = circle.options.copyWith(changes);
     notifyListeners();
   }
 
@@ -609,8 +681,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// In that case this method provides the circle's actual position, and `circle.options.geometry` the last programmatically set position.
   Future<LatLng> getCircleLatLng(Circle circle) async {
     assert(_circles[circle.id] == circle);
-    final circleLatLng =
-        await MapLibreGlPlatform.getInstance(_id).getCircleLatLng(circle);
+    final circleLatLng = await _mapLibreGlPlatform.getCircleLatLng(circle);
     notifyListeners();
     return circleLatLng;
   }
@@ -625,7 +696,7 @@ class MaplibreMapController extends ChangeNotifier {
   Future<void> removeCircle(Circle circle) async {
     assert(_circles[circle.id] == circle);
 
-    await MapLibreGlPlatform.getInstance(_id).removeCircle(circle.id);
+    await _mapLibreGlPlatform.removeCircle(circle.id);
     _circles.remove(circle.id);
 
     notifyListeners();
@@ -642,7 +713,7 @@ class MaplibreMapController extends ChangeNotifier {
     final ids = circles.where((c) => _circles[c.id] == c).map((c) => c.id);
     assert(circles.length == ids.length);
 
-    await MapLibreGlPlatform.getInstance(_id).removeCircles(ids);
+    await _mapLibreGlPlatform.removeCircles(ids);
     ids.forEach((id) => _circles.remove(id));
     notifyListeners();
   }
@@ -654,7 +725,7 @@ class MaplibreMapController extends ChangeNotifier {
   ///
   /// The returned [Future] completes once listeners have been notified.
   Future<void> clearCircles() async {
-    await MapLibreGlPlatform.getInstance(_id).removeCircles(_circles.keys);
+    await _mapLibreGlPlatform.removeCircles(_circles.keys);
     _circles.clear();
 
     notifyListeners();
@@ -670,8 +741,7 @@ class MaplibreMapController extends ChangeNotifier {
   Future<Fill> addFill(FillOptions options, [Map? data]) async {
     final FillOptions effectiveOptions =
         FillOptions.defaultOptions.copyWith(options);
-    final fill = await MapLibreGlPlatform.getInstance(_id)
-        .addFill(effectiveOptions, data);
+    final fill = await _mapLibreGlPlatform.addFill(effectiveOptions, data);
     _fills[fill.id] = fill;
     notifyListeners();
     return fill;
@@ -687,8 +757,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// been notified.
   Future<List<Fill>> addFills(List<FillOptions> options,
       [List<Map>? data]) async {
-    final circles =
-        await MapLibreGlPlatform.getInstance(_id).addFills(options, data);
+    final circles = await _mapLibreGlPlatform.addFills(options, data);
     circles.forEach((f) => _fills[f.id] = f);
     notifyListeners();
     return circles;
@@ -703,7 +772,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once listeners have been notified.
   Future<void> updateFill(Fill fill, FillOptions changes) async {
     assert(_fills[fill.id] == fill);
-    await MapLibreGlPlatform.getInstance(_id).updateFill(fill, changes);
+    await _mapLibreGlPlatform.updateFill(fill, changes);
     fill.options = fill.options.copyWith(changes);
     notifyListeners();
   }
@@ -715,7 +784,8 @@ class MaplibreMapController extends ChangeNotifier {
   ///
   /// The returned [Future] completes once listeners have been notified.
   Future<void> clearFills() async {
-    await MapLibreGlPlatform.getInstance(_id).removeFills(_fills.keys);
+    await _mapLibreGlPlatform.removeFills(_fills.keys);
+    _fills.clear();
 
     notifyListeners();
   }
@@ -729,7 +799,7 @@ class MaplibreMapController extends ChangeNotifier {
   /// The returned [Future] completes once listeners have been notified.
   Future<void> removeFill(Fill fill) async {
     assert(_fills[fill.id] == fill);
-    await MapLibreGlPlatform.getInstance(_id).removeFill(fill.id);
+    await _mapLibreGlPlatform.removeFill(fill.id);
     _fills.remove(fill.id);
 
     notifyListeners();
@@ -746,37 +816,36 @@ class MaplibreMapController extends ChangeNotifier {
     final ids = fills.where((f) => _fills[f.id] == f).map((f) => f.id);
     assert(fills.length == ids.length);
 
-    await MapLibreGlPlatform.getInstance(_id).removeFills(ids);
+    await _mapLibreGlPlatform.removeFills(ids);
     ids.forEach((id) => _fills.remove(id));
     notifyListeners();
   }
 
   Future<List> queryRenderedFeatures(
       Point<double> point, List<String> layerIds, List<Object>? filter) async {
-    return MapLibreGlPlatform.getInstance(_id)
-        .queryRenderedFeatures(point, layerIds, filter);
+    return _mapLibreGlPlatform.queryRenderedFeatures(point, layerIds, filter);
   }
 
   Future<List> queryRenderedFeaturesInRect(
       Rect rect, List<String> layerIds, String? filter) async {
-    return MapLibreGlPlatform.getInstance(_id)
-        .queryRenderedFeaturesInRect(rect, layerIds, filter);
+    return _mapLibreGlPlatform.queryRenderedFeaturesInRect(
+        rect, layerIds, filter);
   }
 
   Future invalidateAmbientCache() async {
-    return MapLibreGlPlatform.getInstance(_id).invalidateAmbientCache();
+    return _mapLibreGlPlatform.invalidateAmbientCache();
   }
 
   /// Get last my location
   ///
   /// Return last latlng, nullable
   Future<LatLng?> requestMyLocationLatLng() async {
-    return MapLibreGlPlatform.getInstance(_id).requestMyLocationLatLng();
+    return _mapLibreGlPlatform.requestMyLocationLatLng();
   }
 
   /// This method returns the boundaries of the region currently displayed in the map.
   Future<LatLngBounds> getVisibleRegion() async {
-    return MapLibreGlPlatform.getInstance(_id).getVisibleRegion();
+    return _mapLibreGlPlatform.getVisibleRegion();
   }
 
   /// Adds an image to the style currently displayed in the map, so that it can later be referred to by the provided name.
@@ -815,59 +884,73 @@ class MaplibreMapController extends ChangeNotifier {
   /// }
   /// ```
   Future<void> addImage(String name, Uint8List bytes, [bool sdf = false]) {
-    return MapLibreGlPlatform.getInstance(_id).addImage(name, bytes, sdf);
+    return _mapLibreGlPlatform.addImage(name, bytes, sdf);
   }
 
   /// For more information on what this does, see https://docs.mapbox.com/help/troubleshooting/optimize-map-label-placement/#label-collision
   Future<void> setSymbolIconAllowOverlap(bool enable) async {
-    await MapLibreGlPlatform.getInstance(_id).setSymbolIconAllowOverlap(enable);
+    await _mapLibreGlPlatform.setSymbolIconAllowOverlap(enable);
   }
 
   /// For more information on what this does, see https://docs.mapbox.com/help/troubleshooting/optimize-map-label-placement/#label-collision
   Future<void> setSymbolIconIgnorePlacement(bool enable) async {
-    await MapLibreGlPlatform.getInstance(_id)
-        .setSymbolIconIgnorePlacement(enable);
+    await _mapLibreGlPlatform.setSymbolIconIgnorePlacement(enable);
   }
 
   /// For more information on what this does, see https://docs.mapbox.com/help/troubleshooting/optimize-map-label-placement/#label-collision
   Future<void> setSymbolTextAllowOverlap(bool enable) async {
-    await MapLibreGlPlatform.getInstance(_id).setSymbolTextAllowOverlap(enable);
+    await _mapLibreGlPlatform.setSymbolTextAllowOverlap(enable);
   }
 
   /// For more information on what this does, see https://docs.mapbox.com/help/troubleshooting/optimize-map-label-placement/#label-collision
   Future<void> setSymbolTextIgnorePlacement(bool enable) async {
-    await MapLibreGlPlatform.getInstance(_id)
-        .setSymbolTextIgnorePlacement(enable);
+    await _mapLibreGlPlatform.setSymbolTextIgnorePlacement(enable);
   }
 
   /// Adds an image source to the style currently displayed in the map, so that it can later be referred to by the provided id.
   Future<void> addImageSource(
       String imageSourceId, Uint8List bytes, LatLngQuad coordinates) {
-    return MapLibreGlPlatform.getInstance(_id)
-        .addImageSource(imageSourceId, bytes, coordinates);
+    return _mapLibreGlPlatform.addImageSource(imageSourceId, bytes, coordinates);
   }
 
   /// Removes previously added image source by id
+  @Deprecated("This method was renamed to removeSource")
   Future<void> removeImageSource(String imageSourceId) {
-    return MapLibreGlPlatform.getInstance(_id).removeImageSource(imageSourceId);
+    return _mapLibreGlPlatform.removeSource(imageSourceId);
   }
 
-  /// Adds a Mapbox style layer to the map's style at render time.
+  /// Removes previously added source by id
+  Future<void> removeSource(String sourceId) {
+    return _mapLibreGlPlatform.removeSource(sourceId);
+  }
+
+  /// Adds a Mapbox image layer to the map's style at render time.
+  Future<void> addImageLayer(String layerId, String imageSourceId) {
+    return _mapLibreGlPlatform.addLayer(layerId, imageSourceId);
+  }
+
+  /// Adds a Mapbox image layer below the layer provided with belowLayerId to the map's style at render time.
+  Future<void> addImageLayerBelow(
+      String layerId, String sourceId, String imageSourceId) {
+    return _mapLibreGlPlatform.addLayerBelow(layerId, sourceId, imageSourceId);
+  }
+
+  /// Adds a Mapbox image layer to the map's style at render time. Only works for image sources!
+  @Deprecated("This method was renamed to addImageLayer for clarity.")
   Future<void> addLayer(String imageLayerId, String imageSourceId) {
-    return MapLibreGlPlatform.getInstance(_id)
-        .addLayer(imageLayerId, imageSourceId);
+    return _mapLibreGlPlatform.addLayer(imageLayerId, imageSourceId);
   }
 
-  /// Adds a Mapbox style layer below the layer provided with belowLayerId to the map's style at render time,
+  /// Adds a Mapbox image layer below the layer provided with belowLayerId to the map's style at render time. Only works for image sources!
+  @Deprecated("This method was renamed to addImageLayerBelow for clarity.")
   Future<void> addLayerBelow(
-      String imageLayerId, String imageSourceId, String belowLayerId) {
-    return MapLibreGlPlatform.getInstance(_id)
-        .addLayerBelow(imageLayerId, imageSourceId, belowLayerId);
+      String layerId, String sourceId, String imageSourceId) {
+    return _mapLibreGlPlatform.addLayerBelow(layerId, sourceId, imageSourceId);
   }
 
   /// Removes a Mapbox style layer
-  Future<void> removeLayer(String imageLayerId) {
-    return MapLibreGlPlatform.getInstance(_id).removeLayer(imageLayerId);
+  Future<void> removeLayer(String layerId) {
+    return _mapLibreGlPlatform.removeLayer(layerId);
   }
 
   /// Returns the point on the screen that corresponds to a geographical coordinate ([latLng]). The screen location is in screen pixels (not display pixels) relative to the top left of the map (not of the whole screen)
@@ -877,22 +960,21 @@ class MaplibreMapController extends ChangeNotifier {
   ///
   /// Returns null if [latLng] is not currently visible on the map.
   Future<Point> toScreenLocation(LatLng latLng) async {
-    return MapLibreGlPlatform.getInstance(_id).toScreenLocation(latLng);
+    return _mapLibreGlPlatform.toScreenLocation(latLng);
   }
 
   Future<List<Point>> toScreenLocationBatch(Iterable<LatLng> latLngs) async {
-    return MapLibreGlPlatform.getInstance(_id).toScreenLocationBatch(latLngs);
+    return _mapLibreGlPlatform.toScreenLocationBatch(latLngs);
   }
 
   /// Returns the geographic location (as [LatLng]) that corresponds to a point on the screen. The screen location is specified in screen pixels (not display pixels) relative to the top left of the map (not the top left of the whole screen).
   Future<LatLng> toLatLng(Point screenLocation) async {
-    return MapLibreGlPlatform.getInstance(_id).toLatLng(screenLocation);
+    return _mapLibreGlPlatform.toLatLng(screenLocation);
   }
 
   /// Returns the distance spanned by one pixel at the specified [latitude] and current zoom level.
   /// The distance between pixels decreases as the latitude approaches the poles. This relationship parallels the relationship between longitudinal coordinates at different latitudes.
   Future<double> getMetersPerPixelAtLatitude(double latitude) async {
-    return MapLibreGlPlatform.getInstance(_id)
-        .getMetersPerPixelAtLatitude(latitude);
+    return _mapLibreGlPlatform.getMetersPerPixelAtLatitude(latitude);
   }
 }

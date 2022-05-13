@@ -18,4 +18,4 @@ part 'src/method_channel_mapbox_gl.dart';
 part 'src/symbol.dart';
 part 'src/fill.dart';
 part 'src/ui.dart';
-part 'src/mapbox_gl_platform_interface.dart';
+part 'src/maplibre_gl_platform_interface.dart';
